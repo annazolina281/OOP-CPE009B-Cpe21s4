@@ -1,0 +1,8 @@
+{
+    "description" : "This is a JSON Sample",
+    "accounts" :
+    [
+        {"id" : 1, "name":"Jack"},
+        {"id" : 2, "name":"Rose"}
+    ]
+}
