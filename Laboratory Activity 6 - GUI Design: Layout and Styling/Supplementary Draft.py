@@ -1,113 +1,94 @@
 import sys
 import math
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QGridLayout,
-                             QLineEdit, QPushButton, QApplication,
-                             QAction, QFileDialog, QMessageBox)
+from PyQt5.QtWidgets import (
+    QGridLayout, QLineEdit, QPushButton, QWidget, QApplication,
+    QMenuBar, QAction, QMessageBox
+)
 
 
-class Calculator(QMainWindow):
+class Calculator(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Calculator")
-        self.setGeometry(300, 300, 400, 400)
+        self.initUI()
+        self.filename = 'calculator_history.txt'
 
-        self.central_widget = QWidget(self)
-        self.setCentralWidget(self.central_widget)
+    def initUI(self):
+        grid = QGridLayout()
+        self.setLayout(grid)
 
-        self.grid = QGridLayout(self.central_widget)
-        self.display = QLineEdit(self)
-        self.grid.addWidget(self.display, 0, 0, 1, 4)
+        self.textLine = QLineEdit(self)
+        grid.addWidget(self.textLine, 0, 0, 1, 5)
 
-        self.create_buttons()
-        self.create_menu()
-
-    def create_buttons(self):
         names = [
-            '7', '8', '9', '/', '',
-            '4', '5', '6', '*', '',
-            '1', '2', '3', '-', '',
-            '0', '.', '=', '+', '',
-            'C', 'sin', 'cos', 'tan', ''
+            '7', '8', '9', '/', 'C',
+            '4', '5', '6', '*', 'sin',
+            '1', '2', '3', '-', 'cos',
+            '0', '.', '=', '+', '**'
         ]
 
-        positions = [(i, j) for i in range(1, 6) for j in range(5)]
-
+        positions = [(i, j) for i in range(1, 5) for j in range(5)]
         for position, name in zip(positions, names):
-            if name == '':
-                continue
             button = QPushButton(name)
-            button.clicked.connect(lambda checked, n=name: self.on_button_click(n))
-            self.grid.addWidget(button, *position)
+            grid.addWidget(button, *position)
+            button.clicked.connect(self.on_button_click)
+
+        self.setGeometry(300, 300, 300, 200)
+        self.setWindowTitle('Calculator')
+
+        self.create_menu()
+        self.show()
 
     def create_menu(self):
-        menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu('File')
-
-        save_action = QAction('Save', self)
-        save_action.triggered.connect(self.save_to_file)
-        file_menu.addAction(save_action)
-
-        load_action = QAction('Load', self)
-        load_action.triggered.connect(self.load_from_file)
-        file_menu.addAction(load_action)
+        menubar = QMenuBar(self)
+        file_menu = menubar.addMenu('File')
 
         exit_action = QAction('Exit', self)
-        exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(self.close)
+        exit_action.setShortcut('Ctrl+Q')
         file_menu.addAction(exit_action)
 
-    def on_button_click(self, button_text):
-        if button_text == '=':
-            try:
-                # Evaluate arithmetic expressions
-                result = eval(self.display.text())
-                self.display.setText(str(result))
-                self.save_operation(f"{self.display.text()} = {result}")
-            except Exception:
-                QMessageBox.warning(self, "Error", "Invalid Input!")
-        elif button_text == 'C':
-            self.display.clear()
-        elif button_text in ('sin', 'cos', 'tan'):
-            try:
-                angle = float(self.display.text())
-                if button_text == 'sin':
-                    result = math.sin(math.radians(angle))
-                elif button_text == 'cos':
-                    result = math.cos(math.radians(angle))
-                elif button_text == 'tan':
-                    result = math.tan(math.radians(angle))
-                self.display.setText(f"{button_text}({angle}) = {result:.2f}")
-                self.save_operation(f"{button_text}({angle}) = {result:.2f}")
-            except ValueError:
-                QMessageBox.warning(self, "Error", "Invalid Input for Trigonometric Function!")
+        self.layout().setMenuBar(menubar)
+
+    def on_button_click(self):
+        sender = self.sender()
+        text = sender.text()
+
+        if text == 'C':
+            self.textLine.clear()
+        elif text == '=':
+            self.calculate_result()
+        elif text in ['sin', 'cos']:
+            self.perform_function(text)
         else:
-            current_text = self.display.text()
-            self.display.setText(current_text + button_text)
+            self.textLine.setText(self.textLine.text() + text)
 
-    def save_to_file(self):
-        options = QFileDialog.Options()
-        file_name, _ = QFileDialog.getSaveFileName(self, "Save File", "", "Text Files (*.txt);; All Files (*)",
-                                                   options=options)
-        if file_name:
-            with open(file_name, 'w') as f:
-                f.write(self.display.text())
+    def calculate_result(self):
+        try:
+            expression = self.textLine.text()
+            result = eval(expression)
+            self.textLine.setText(str(result))
+            self.save_to_file(f"{expression} = {result}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
-    def load_from_file(self):
-        options = QFileDialog.Options()
-        file_name, _ = QFileDialog.getOpenFileName(self, "Open File", "", "Text Files (*.txt);; All Files (*)",
-                                                   options=options)
-        if file_name:
-            with open(file_name, 'r') as f:
-                data = f.read()
-                self.display.setText(data)
+    def perform_function(self, func):
+        try:
+            value = float(self.textLine.text())
+            if func == 'sin':
+                result = math.sin(math.radians(value))
+            elif func == 'cos':
+                result = math.cos(math.radians(value))
+            self.textLine.setText(str(result))
+            self.save_to_file(f"{func}({value}) = {result}")
+        except ValueError:
+            QMessageBox.critical(self, "Error", "Invalid input for function.")
 
-    def save_operation(self, operation):
-        with open("operations.txt", 'a') as f:
-            f.write(operation + '\n')
+    def save_to_file(self, operation):
+        with open(self.filename, 'a') as file:
+            file.write(operation + '\n')
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     calculator = Calculator()
-    calculator.show()
     sys.exit(app.exec_())
