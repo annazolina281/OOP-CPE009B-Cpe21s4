@@ -1,94 +1,168 @@
 import sys
-import math
 from PyQt5.QtWidgets import (
-    QGridLayout, QLineEdit, QPushButton, QWidget, QApplication,
-    QMenuBar, QAction, QMessageBox
+    QWidget, QGridLayout, QLineEdit, QPushButton, QVBoxLayout, QApplication,
+    QMainWindow, QAction, QFileDialog, QTextEdit, QMenuBar
 )
+from PyQt5.QtGui import QIcon
+import math
 
-
-class Calculator(QWidget):
+class CalculatorApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("Calculator")
+        self.setGeometry(300, 300, 400, 400)
         self.initUI()
-        self.filename = 'calculator_history.txt'
 
     def initUI(self):
-        grid = QGridLayout()
-        self.setLayout(grid)
+        mainWidget = QWidget(self)
+        mainLayout = QVBoxLayout()
 
+        # Display
         self.textLine = QLineEdit(self)
-        grid.addWidget(self.textLine, 0, 0, 1, 5)
+        mainLayout.addWidget(self.textLine)
 
+        # Grid Layout for buttons
+        grid = QGridLayout()
+        mainLayout.addLayout(grid)
+
+        # Button names
         names = [
-            '7', '8', '9', '/', 'C',
-            '4', '5', '6', '*', 'sin',
-            '1', '2', '3', '-', 'cos',
-            '0', '.', '=', '+', '**'
+            '7', '8', '9', '/', 'sin',
+            '4', '5', '6', '*', 'cos',
+            '1', '2', '3', '-', '^',
+            '0', '.', '=', '+', 'C'
         ]
 
-        positions = [(i, j) for i in range(1, 5) for j in range(5)]
+        # Add buttons to grid
+        positions = [(i, j) for i in range(5) for j in range(5)]
         for position, name in zip(positions, names):
             button = QPushButton(name)
+            button.clicked.connect(self.onButtonClick)
             grid.addWidget(button, *position)
-            button.clicked.connect(self.on_button_click)
 
-        self.setGeometry(300, 300, 300, 200)
-        self.setWindowTitle('Calculator')
+        # Text area for calculations
+        self.calculations = QTextEdit()
+        mainLayout.addWidget(self.calculations)
 
-        self.create_menu()
-        self.show()
+        # Set main layout
+        mainWidget.setLayout(mainLayout)
+        self.setCentralWidget(mainWidget)
 
-    def create_menu(self):
-        menubar = QMenuBar(self)
-        file_menu = menubar.addMenu('File')
+        # Menu
+        self.createMenu()
 
-        exit_action = QAction('Exit', self)
-        exit_action.triggered.connect(self.close)
-        exit_action.setShortcut('Ctrl+Q')
-        file_menu.addAction(exit_action)
+    def createMenu(self):
+        mainMenu = QMenuBar(self)
 
-        self.layout().setMenuBar(menubar)
+        # File menu
+        fileMenu = mainMenu.addMenu('File')
 
-    def on_button_click(self):
+        # Save action
+        saveAction = QAction('Save Calculations', self)
+        saveAction.setShortcut('Ctrl+S')
+        saveAction.triggered.connect(self.saveCalculations)
+        fileMenu.addAction(saveAction)
+
+        # Open action
+        openAction = QAction('Open Calculations', self)
+        openAction.setShortcut('Ctrl+O')
+        openAction.triggered.connect(self.openCalculations)
+        fileMenu.addAction(openAction)
+
+        # Clear action
+        clearAction = QAction('Clear Calculations', self)
+        clearAction.setShortcut('Ctrl+M')
+        clearAction.triggered.connect(self.clearCalculations)
+        fileMenu.addAction(clearAction)
+
+        # Exit action
+        exitAction = QAction('Exit', self)
+        exitAction.setShortcut('Ctrl+Q')
+        exitAction.triggered.connect(self.close)
+        fileMenu.addAction(exitAction)
+
+        self.setMenuBar(mainMenu)
+
+    def keyPressEvent(self, event):
+        key = event.text()
+        if key in '0123456789.+-*/':
+            self.textLine.setText(self.textLine.text() + key)
+        elif key == '=':
+            self.evaluateExpression()
+        elif key.lower() == 'c':
+            self.clearCalculations()  # Calls the clear function
+        elif key == '^':
+            self.textLine.setText(self.textLine.text() + '**')
+
+    def onButtonClick(self):
         sender = self.sender()
-        text = sender.text()
+        button_text = sender.text()
 
-        if text == 'C':
-            self.textLine.clear()
-        elif text == '=':
-            self.calculate_result()
-        elif text in ['sin', 'cos']:
-            self.perform_function(text)
+        if button_text == 'C':
+            # Clear the input field
+            self.clearCalculations()  # Calls the clear function
+        elif button_text == '=':
+            self.evaluateExpression()
+        elif button_text == 'sin':
+            self.calculateTrig('sin')
+        elif button_text == 'cos':
+            self.calculateTrig('cos')
+        elif button_text == '^':
+            # Append exponentiation symbol for power operation
+            current_text = self.textLine.text()
+            self.textLine.setText(current_text + '**')
         else:
-            self.textLine.setText(self.textLine.text() + text)
+            # Append the button text to the current input
+            current_text = self.textLine.text()
+            self.textLine.setText(current_text + button_text)
 
-    def calculate_result(self):
+    def evaluateExpression(self):
+        # Calculate and display result
+        expression = self.textLine.text()
+        expression = expression.replace("^", "**")
         try:
-            expression = self.textLine.text()
-            result = eval(expression)
-            self.textLine.setText(str(result))
-            self.save_to_file(f"{expression} = {result}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            result = str(eval(expression))  # Direct calculation
+            self.textLine.setText(result)
+            self.calculations.append(f"{expression} = {result}")
+        except:
+            self.textLine.setText("Error")  # Display error for invalid expressions
 
-    def perform_function(self, func):
+    def calculateTrig(self, func):
+        # Calculate trigonometric function in degrees
+        expression = self.textLine.text()
         try:
-            value = float(self.textLine.text())
+            value = float(expression)
             if func == 'sin':
-                result = math.sin(math.radians(value))
+                result = str(math.sin(math.radians(value)))
+                self.calculations.append(f"sin({expression}) = {result}")
             elif func == 'cos':
-                result = math.cos(math.radians(value))
-            self.textLine.setText(str(result))
-            self.save_to_file(f"{func}({value}) = {result}")
+                result = str(math.cos(math.radians(value)))
+                self.calculations.append(f"cos({expression}) = {result}")
+            self.textLine.setText(result)
         except ValueError:
-            QMessageBox.critical(self, "Error", "Invalid input for function.")
+            self.textLine.setText("Error")  # Handle invalid input for trig functions
 
-    def save_to_file(self, operation):
-        with open(self.filename, 'a') as file:
-            file.write(operation + '\n')
+    def saveCalculations(self):
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getSaveFileName(self, "Save Calculations", "", "Text Files (*.txt)", options=options)
+        if fileName:
+            with open(fileName, 'w') as file:
+                file.write(self.calculations.toPlainText())
 
+    def openCalculations(self):
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open Calculations", "", "Text Files (*.txt)", options=options)
+        if fileName:
+            with open(fileName, 'r') as file:
+                data = file.read()
+                self.calculations.setText(data)
+
+    def clearCalculations(self):
+        self.textLine.clear()  # Clear the input field
+        self.calculations.clear()  # Clear the calculations text area
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    calculator = Calculator()
+    calculator = CalculatorApp()
+    calculator.show()
     sys.exit(app.exec_())
